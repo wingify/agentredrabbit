@@ -18,6 +18,8 @@ config_fields['vhost'] = ''
 config_fields['exchange'] = ''
 config_fields['queues'] = 'queue1:queue2:queue3'
 config_fields['workers'] = 8
+config_fields['senderemail'] = test@example.com
+config_fields['receiveremail'] = test@example.com
 
 
 def ReadConfig(config_file):
