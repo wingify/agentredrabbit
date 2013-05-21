@@ -18,6 +18,7 @@ setup(
     long_description="Transport agent that moves data from Redis to RabbitMQ",
     platforms=("Any",),
     packages=find_packages(),
+    package_data={"": ["LICENSE",],},
     install_requires = [
         "hiredis",
         "pika",
@@ -25,7 +26,6 @@ setup(
         "watchdog",
     ],
     include_package_data = True,
-    license=open("LICENSE").read(),
     zip_safe = False,
     classifiers = [
         "Development Status :: 5 - Production/Stable",
