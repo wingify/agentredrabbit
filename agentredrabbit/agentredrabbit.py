@@ -7,11 +7,11 @@ try:
     import sys
     import threading
 
-    from .config import ReadConfig
-    from .logger import log
-    from .transport import TransportQueueThread, PidFileEventHandler
-    from .transport import setFailsafeQueue, getFailsafeQueue
-    from .transport import setPidFileExists, getPidFileExists
+    from config import ReadConfig
+    from logger import log
+    from transport import TransportQueueThread, PidFileEventHandler
+    from transport import setFailsafeQueue, getFailsafeQueue
+    from transport import setPidFileExists, getPidFileExists
     from optparse import OptionParser
     from watchdog.observers import Observer
 except ImportError, err:
@@ -35,6 +35,14 @@ def main():
                       help="increase debug level from INFO to DEBUG")
     (options, args) = parser.parse_args()
 
+
+    cfg_path = "/etc/agentredrabbit.conf"
+    if options.config_file is not None:
+        cfg_path = options.config_file
+    config = ReadConfig(cfg_path)
+
+    logfh = logging.FileHandler(config["logfile"])
+    log.addHandler(logfh)
     if options.verbose:
         log.setLevel(logging.DEBUG)
 
@@ -50,10 +58,6 @@ def main():
         log.info("[+] Agent found running, stopping...")
         sys.exit(0)
 
-    cfg_path = "default.conf"
-    if options.config_file is not None:
-        cfg_path = options.config_file
-    config = ReadConfig(cfg_path)
     queues = filter(lambda x: x.strip() != "", config["queues"].split(":"))
 
     if os.path.exists(pid_file) and os.path.isfile(pid_file):
@@ -83,7 +87,7 @@ def main():
     # Failsafe queue handling
     failsafeq = {}
     # Read from dump file if available
-    dumpfilename = "safeq-agentredrabbit.dump"
+    dumpfilename = config["dumpfile"]
     if os.path.exists(dumpfilename):
         with open(dumpfilename, "rb") as dumpfile:
             failsafeq = pickle.load(dumpfile)

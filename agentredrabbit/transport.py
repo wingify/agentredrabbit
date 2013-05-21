@@ -3,10 +3,11 @@ try:
     import pika
     import redis
     import smtplib
+    import socket
     import threading
     import time
 
-    from .logger import log
+    from logger import log
     from email.mime.text import MIMEText
     from watchdog.events import FileSystemEventHandler
 except ImportError, err:

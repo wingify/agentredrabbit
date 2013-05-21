@@ -2,7 +2,7 @@ try:
     import os
     import sys
 
-    from .logger import log
+    from logger import log
     from ConfigParser import ConfigParser
 except ImportError, err:
     print("Import error in %s : %s" % (__name__, err))
@@ -18,9 +18,10 @@ config_fields['vhost'] = ''
 config_fields['exchange'] = ''
 config_fields['queues'] = 'queue1:queue2:queue3'
 config_fields['workers'] = 8
-config_fields['senderemail'] = test@example.com
-config_fields['receiveremail'] = test@example.com
-
+config_fields['senderemail'] = "test@example.com"
+config_fields['receiveremail'] = "test@example.com"
+config_fields['dumpfile'] = "agentredrabbit.dump"
+config_fields['logfile'] = "agentredrabbit.log"
 
 def ReadConfig(config_file):
     global config_fields
