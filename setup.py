@@ -15,7 +15,7 @@ setup(
     author_email="rohit.yadav@wingify.com",
     url="https://github.com/wingify/agentredrabbit",
     description="Redis to RabbitMQ transport agent",
-    long_description="Transport agent that moves data from Redis to RabbitMQ"
+    long_description="Transport agent that moves data from Redis to RabbitMQ",
     platforms=("Any",),
     packages=find_packages(),
     install_requires = [

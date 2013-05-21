@@ -14,7 +14,7 @@ config_fields['host'] = 'localhost'
 config_fields['port'] = '5672'
 config_fields['username'] = 'guest'
 config_fields['password'] = 'guest'
-config_fields['vhost'] = ''
+config_fields['vhost'] = '/'
 config_fields['exchange'] = ''
 config_fields['queues'] = 'queue1:queue2:queue3'
 config_fields['workers'] = 8
@@ -23,7 +23,7 @@ config_fields['receiveremail'] = "test@example.com"
 config_fields['dumpfile'] = "agentredrabbit.dump"
 config_fields['logfile'] = "agentredrabbit.log"
 
-def ReadConfig(config_file):
+def ReadConfig(config_file="/etc/agentredrabbit.conf"):
     global config_fields
     config = ConfigParser()
     section = "agentredrabbit"
@@ -37,8 +37,11 @@ def ReadConfig(config_file):
         config.add_section(section)
         for key in config_fields.keys():
             config.set(section, key, config_fields[key])
-        with open(config_file, 'w') as cfg:
-            config.write(cfg)
+        try:
+            with open(config_file, 'w') as cfg:
+                config.write(cfg)
+        except IOError:
+            pass
 
     cfg = {}
     for key in config_fields.keys():
