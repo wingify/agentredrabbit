@@ -76,7 +76,7 @@ class TransportQueueThread(threading.Thread):
 
         msg = MIMEText(message)
         msg["Subject"] = "agentredrabbit: %s" % subject
-        msg["From"] = sender
+        msg["From"] = socket.gethostname() + sender
         msg["To"] = ", ".join(receivers)
 
         try:
@@ -184,7 +184,9 @@ class TransportQueueThread(threading.Thread):
             pushback = False  # Avoid duplication for edge cases
         except Exception, err:
             log.error("Unknown exception while pushing to MQ: " + str(err))
-            self.sendEmail("Unknown error happened", "Error: %s" % str(err))
+            rabbit = None
+            channel = None
+            pushback = True
         return rabbit, channel, pushback
 
     def transportMessages(self):
