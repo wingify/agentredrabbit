@@ -156,7 +156,7 @@ class TransportQueueThread(threading.Thread):
                 channel.confirm_delivery()
                 channel.queue_declare(queue=self.queue, durable=True)
                 channel.exchange_declare(exchange=self.exchange,
-                                         type="topic")
+                                         type="topic", durable=True)
                 channel.queue_bind(exchange=self.exchange,
                                    queue=self.queue,
                                    routing_key=self.routing_key)
