@@ -13,6 +13,8 @@ AMQP exchange routing key string is of format: hostname.queuename.log
 For every RabbitMQ queue name q we need to work on, the corresponding Redis
 list name is assumed as "queue:q\_redis"
 
+World writes to Redis queue using RPUSH, we do LPUSH, LPOP, LTRIM, LRANGE
+
 ## Installation
 
 agentredrabbit dependencies:

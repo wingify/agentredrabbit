@@ -23,7 +23,6 @@ setup(
         "hiredis",
         "pika",
         "redis",
-        "watchdog",
     ],
     include_package_data = True,
     zip_safe = False,

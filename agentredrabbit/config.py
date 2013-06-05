@@ -1,27 +1,34 @@
 try:
     import os
     import sys
+    import logging
 
-    from logger import log
     from ConfigParser import ConfigParser
 except ImportError, err:
     print("Import error in %s : %s" % (__name__, err))
     import sys
     sys.exit(1)
 
+log = logging.getLogger(__name__)
+
 config_fields = {}
-config_fields['host'] = 'localhost'
-config_fields['port'] = '5672'
-config_fields['username'] = 'guest'
-config_fields['password'] = 'guest'
-config_fields['vhost'] = '/'
-config_fields['exchange'] = ''
+config_fields['agent'] = 'agentredrabbit'
+config_fields['redis_host'] = '127.0.0.1'
+config_fields['redis_port'] = '6379'
+config_fields['rabbit_host'] = '127.0.0.1'
+config_fields['rabbit_port'] = '5672'
+config_fields['rabbit_user'] = 'guest'
+config_fields['rabbit_passwd'] = 'guest'
+config_fields['rabbit_vhost'] = '/'
+config_fields['rabbit_exchange'] = 'testx'
+config_fields['rabbit_exchange_type'] = 'topic'
 config_fields['queues'] = 'queue1:queue2:queue3'
 config_fields['workers'] = 8
-config_fields['senderemail'] = "test@example.com"
-config_fields['receiveremail'] = "test@example.com"
-config_fields['dumpfile'] = "agentredrabbit.dump"
-config_fields['logfile'] = "agentredrabbit.log"
+config_fields['sender_email'] = "test@example.com"
+config_fields['receiver_email'] = "test@example.com,"
+config_fields['dump_file'] = "agentredrabbit.dump"
+config_fields['log_file'] = "agentredrabbit.log"
+
 
 def ReadConfig(config_file="/etc/agentredrabbit.conf"):
     global config_fields

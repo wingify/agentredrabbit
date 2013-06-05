@@ -4,125 +4,101 @@ try:
     import logging
     import os
     import pickle
+    import signal
     import sys
     import threading
 
     from config import ReadConfig
-    from logger import log
-    from transport import TransportQueueThread, PidFileEventHandler
+    from utils import log_format
+    from transport import Transporter
     from transport import setFailsafeQueue, getFailsafeQueue
-    from transport import setPidFileExists, getPidFileExists
     from optparse import OptionParser
-    from watchdog.observers import Observer
 except ImportError, err:
     print "ImportError", err
     import sys
     sys.exit(1)
 
+log = logging.getLogger(__name__)
+threads = []
+shutdown_event = None
+
+
+def sighandler(signum, frame):
+    log.info("Starting graceful shutdown, caught signal #%s" % signum)
+    global threads, shutdown_event
+    shutdown_event.set()
+
+    for thread in threads:
+        thread.join()
+
+    for thread in threads:
+        log.info("%s running state = %s" % (thread, thread.is_alive()))
+
 
 def main():
     log.setLevel(logging.INFO)
-    parser = OptionParser(usage="%prog [-c config] [-s] [-v]",
+    parser = OptionParser(usage="%prog [-c config] [-v]",
                           version="%prog %s")
     parser.add_option("-c", "--config",
                       dest="config_file", default=None,
                       help="config file")
-    parser.add_option("-s", "--stop",
-                      action="store_true", dest="stopdaemon", default=False,
-                      help="stop any running agent daemon")
     parser.add_option("-v", "--verbose",
                       action="store_true", dest="verbose", default=False,
                       help="increase debug level from INFO to DEBUG")
     (options, args) = parser.parse_args()
-
 
     cfg_path = "/etc/agentredrabbit.conf"
     if options.config_file is not None:
         cfg_path = options.config_file
     config = ReadConfig(cfg_path)
 
-    logfh = logging.FileHandler(config["logfile"])
-    log.addHandler(logfh)
+    log_level = logging.INFO
     if options.verbose:
-        log.setLevel(logging.DEBUG)
+        log_level = logging.DEBUG
 
-    pid_dir = "/tmp/"
-    pid_file = pid_dir + "agentredrabbit.pid"
-    pid_file_exists = False
-    if options.stopdaemon:
-        try:
-            os.remove(pid_file)
-        except Exception:
-            log.info("[!] No pid file found, grep ps aux?")
-            sys.exit(1)
-        log.info("[+] Agent found running, stopping...")
-        sys.exit(0)
+    logging.basicConfig(filename=config["log_file"], filemode="a",
+                        level=log_level, format=log_format)
+    logging.getLogger("pika").setLevel(logging.INFO)
+
+    signal.signal(signal.SIGTERM, sighandler)
+    signal.signal(signal.SIGINT, sighandler)
+    signal.signal(signal.SIGQUIT, sighandler)
+    signal.signal(signal.SIGHUP, sighandler)
 
     queues = filter(lambda x: x.strip() != "", config["queues"].split(":"))
-
-    if os.path.exists(pid_file) and os.path.isfile(pid_file):
-        try:
-            with open(pid_file):
-                log.info("Pid file found: " + pid_file)
-                log.info("[!] Looks like another agent is running!")
-                sys.exit()
-        except IOError:
-            log.info("[!] IOError in main() IOError, why are we here duh?")
-            pass
-    else:
-        log.info("[+] Writing pid(%d) to file: %s" % (os.getpid(), pid_file))
-        f = open(pid_file, "w")
-        f.write("%d\n" % os.getpid())
-        f.close()
-        pid_file_exists = True
-
-    setPidFileExists(pid_file_exists)
-
-    # Apply filesystem event hook on pid_file for graceful shutdown
-    observer = Observer()
-    event_handler = PidFileEventHandler(pid_file, observer)
-    observer.schedule(event_handler, pid_dir)
-    observer.start()
 
     # Failsafe queue handling
     failsafeq = {}
     # Read from dump file if available
-    dumpfilename = config["dumpfile"]
+    dumpfilename = config["dump_file"]
     if os.path.exists(dumpfilename):
         with open(dumpfilename, "rb") as dumpfile:
             failsafeq = pickle.load(dumpfile)
-            log.info("[+] Loaded failsafeq: " + str(failsafeq))
+            log.info("Loaded failsafeq: " + str(failsafeq))
     for queue in queues:
         if not queue in failsafeq:
             failsafeq[queue] = []
     setFailsafeQueue(failsafeq)
 
     # Start threads
-    queue_lock = threading.Lock()
-    threads = []
+    global threads, shutdown_event
+    shutdown_event = threading.Event()
+    qlock = threading.Lock()
     threadcount = int(config["workers"])
     log.info("[+] Starting workers for queues: " + ", ".join(queues))
-    for idx, queue in enumerate(queues*threadcount):
-        thread = TransportQueueThread(queue_lock, idx, queue, config)
+    for idx, queue in enumerate(queues * threadcount):
+        thread = Transporter(idx, qlock, config, queue, shutdown_event)
         thread.start()
         threads.append(thread)
 
-    # Wait for threads
-    threads.append(observer)
-    for thread in threads:
-        try:
-            thread.join()
-        except RuntimeError:
-            log.error("Looks like threads exited before they were joined")
+    while not shutdown_event.is_set():
+        signal.pause()
 
-    # Gracefully dump internal queue and shutdown
-    if getPidFileExists() is False:
-        dumpfile = open(dumpfilename, "wb")
-        pickle.dump(getFailsafeQueue(), dumpfile)
-        dumpfile.close()
-        log.info("[*] Shutting down agentredrabbit")
-        sys.exit(0)
-    log.info("[!] You should not see this message")
+    dumpfile = open(dumpfilename, "wb+")
+    pickle.dump(getFailsafeQueue(), dumpfile)
+    dumpfile.close()
+    log.info("We had a clean shutdown, Bye!")
+    sys.exit(0)
 
 
 if __name__ == "__main__":
