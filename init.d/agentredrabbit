@@ -1,0 +1,79 @@
+#!/bin/sh
+# Copyright (c) 2013 Rohit Yadav, Wingify
+# Released under MIT License.
+### BEGIN INIT INFO
+# Provides:          agentredrabbit
+# Required-Start:    $local_fs $network $syslog $named
+# Required-Stop:     $local_fs $network $syslog $named
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: agentredrabbit, a Redis to RabbbitMQ transport agent
+# Description:       agentredrabbit is a transport agent which moves data from
+# Redis to RabbitMQ. It should handle message acks and on failure dump payload
+# to file and try to publish it later when it gets any chance.
+# Enable to run when system starts: update-rc.d -f agentredrabbit defaults
+### END INIT INFO
+
+NAME=agentredrabbit
+PIDFILE=/var/run/$NAME.pid
+
+# Check for missing binaries
+AGENT_BIN=/usr/local/bin/$NAME
+test -x $AGENT_BIN || { echo "$AGENT_BIN not installed";
+        if [ "$1" = "stop" ]; then exit 0;
+        else exit 5; fi; }
+
+# Check for existence of needed config file and read it
+AGENT_CONFIG=/etc/$NAME.conf
+test -r $AGENT_CONFIG || { echo "Could not find config file: $AGENT_CONFIG, pass using --config";
+        if [ "$1" = "stop" ]; then exit 0;
+        else exit 6; fi; }
+AGENT_ARGS="--config $AGENT_CONFIG"
+
+set -e
+
+# Assuming debian based distro with lsb
+. /lib/lsb/init-functions
+
+start_agent() {
+  start-stop-daemon --start --pidfile $PIDFILE \
+      -b --make-pidfile \
+      --user www-data --group www-data --chuid www-data \
+      --quiet --exec "${AGENT_BIN}" -- ${AGENT_ARGS}
+}
+
+stop_agent() {
+  start-stop-daemon --stop --verbose --oknodo --pidfile $PIDFILE
+  rm -f $PIDFILE
+}
+
+case "$1" in
+  start)
+        echo -n "Starting "
+        start_agent
+        echo "$NAME."
+        ;;
+  stop)
+        echo -n "Stopping "
+        stop_agent
+        echo "$NAME."
+        ;;
+
+  restart)
+        echo -n "Restarting "
+        stop_agent
+        sleep 4
+        start_agent
+        echo "$NAME."
+        ;;
+  status)
+        status_of_proc $AGENT_BIN $NAME
+        ;;
+  *)
+        N=/etc/init.d/$NAME
+        echo "Usage: $N {start|stop|restart|status}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
