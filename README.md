@@ -21,12 +21,11 @@ agentredrabbit dependencies:
 
 - pika
 - redis (with hiredis for fast parsing)
-- watchdog
 - tests requires nose, unittest, mock
 
 To install agentredrabbit, simply:
 
-    $ pip install agentredrabbit
+    $ make install
 
 ## Usage
 
@@ -40,7 +39,7 @@ Run with a configuration:
 
 Gracefully stop running agent:
 
-    $ agentredrabbit --stop
+    $ kill -15 <pid of agentredrabbit>
 
 Example of running as a background process:
 

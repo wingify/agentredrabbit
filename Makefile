@@ -7,11 +7,15 @@ build: runtests
 	python setup.py build
 	python setup.py sdist
 
-install: build
-	pip install dist/agentredrabbit-*.tar.gz
-
 clean:
 	rm -frv build dist *egg-info
+
+install: clean
+	python setup.py sdist
+	pip install dist/agentredrabbit-*.tar.gz
+	cp init.d/agentredrabbit /etc/init.d
+	chmod +x /etc/init.d/agentredrabbit
+	update-rc.d -f agentredrabbit defaults
 
 sample-setup:
 	rabbitmqctl add_user agentredrabbit rabbitpassword
