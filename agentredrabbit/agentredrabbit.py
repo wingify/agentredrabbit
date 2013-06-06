@@ -94,7 +94,7 @@ def main():
     while not shutdown_event.is_set():
         signal.pause()
 
-    dumpfile = open(dumpfilename, "wb+")
+    dumpfile = open(dumpfilename, "wb")
     pickle.dump(getFailsafeQueue(), dumpfile)
     dumpfile.close()
     log.info("We had a clean shutdown, Bye!")

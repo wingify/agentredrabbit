@@ -53,7 +53,7 @@ class Transporter(threading.Thread):
         self.exchange = config["rabbit_exchange"]
         self.exchange_type = config["rabbit_exchange_type"]
         self.routing_key = "%s.%s.log" % (socket.gethostname(), self.queue)
-        self.publish_interval = 1
+        self.publish_interval = config["publish_interval"]
         self.message_header = {"node": socket.gethostname(),
                                "queue": self.queue,
                                "tag": self.tag}
@@ -77,9 +77,9 @@ class Transporter(threading.Thread):
         log.debug("(%s) Connecting to %s", self.tag, self.amqp_url)
         conn = None
         try:
-            conn =  pika.SelectConnection(pika.URLParameters(self.amqp_url),
-                                          self.on_connection_open,
-                                          stop_ioloop_on_close=False)
+            conn = pika.SelectConnection(pika.URLParameters(self.amqp_url),
+                                         self.on_connection_open,
+                                         stop_ioloop_on_close=False)
         except (pika.exceptions.AMQPConnectionError, Exception), err:
             log.error("(%s) AMQP conn error: %s" % (self.tag, err))
         return conn
@@ -148,9 +148,9 @@ class Transporter(threading.Thread):
     def setup_exchange(self, exchange_name):
         log.debug("(%s) Declaring exchange %s", self.tag, exchange_name)
         self.channel.exchange_declare(self.on_exchange_declareok,
-                                       exchange_name,
-                                       self.exchange_type,
-                                       durable=True)
+                                      exchange_name,
+                                      self.exchange_type,
+                                      durable=True)
 
     def on_exchange_declareok(self, unused_frame):
         log.debug("(%s) Exchange declared", self.tag)
@@ -159,28 +159,28 @@ class Transporter(threading.Thread):
     def setup_queue(self, queue_name):
         log.debug("(%s) Declaring queue %s", self.tag, queue_name)
         self.channel.queue_declare(self.on_queue_declareok, queue_name,
-                                    durable=True)
+                                   durable=True)
 
     def on_queue_declareok(self, method_frame):
         log.debug("(%s) Binding %s to %s with %s", self.tag, self.exchange,
                   self.queue, self.routing_key)
         self.channel.queue_bind(self.on_bindok, self.queue,
-                                 self.exchange, self.routing_key)
+                                self.exchange, self.routing_key)
 
     def on_delivery_confirmation(self, method_frame):
         confirmation_type = method_frame.method.NAME.split(".")[1].lower()
-        log.debug("Received %s for delivery tag: %i",
-                    confirmation_type,
-                    method_frame.method.delivery_tag)
+        log.debug("(%s) Received %s for delivery tag: %i",
+                  self.tag, confirmation_type,
+                  method_frame.method.delivery_tag)
         if confirmation_type == "ack":
             self.acked += 1
         elif confirmation_type == "nack":
             self.nacked += 1
         self.deliveries.remove(method_frame.method.delivery_tag)
-        log.info("Published %i messages, %i have yet to be confirmed, "
-                    "%i were acked and %i were nacked",
-                    self.message_number, len(self.deliveries),
-                    self.acked, self.nacked)
+        log.info("(%s) Published %i messages, %i have yet to be confirmed, "
+                 "%i were acked and %i were nacked",
+                 self.tag, self.message_number, len(self.deliveries),
+                 self.acked, self.nacked)
 
     def enable_delivery_confirmations(self):
         log.info("(%s) Issuing Confirm.Select RPC command", self.tag)
@@ -222,12 +222,13 @@ class Transporter(threading.Thread):
                                                   headers=self.message_header)
                 try:
                     self.channel.basic_publish(self.exchange,
-                                              self.routing_key,
-                                              "\n".join(message),
-                                              properties=properties,
-                                              mandatory=True)
-                except pika.exceptions.ChannelClosed, err:
-                    log.error("RMQ Channel closed: %s", err)
+                                               self.routing_key,
+                                               "\n".join(message),
+                                               properties=properties,
+                                               mandatory=True)
+                except (pika.exceptions.ChannelClosed, Exception), err:
+                    log.error("(%s) Publish error, maybe channel closed: %s",
+                              self.tag, err)
                     with self.lock:
                         heapq.heappush(failsafeq[self.queue], message)
                 else:
@@ -239,10 +240,10 @@ class Transporter(threading.Thread):
     def schedule_next_message(self):
         if self.stopping:
             return
-        log.info("Scheduling next message for %0.1f seconds",
-                    self.publish_interval)
+        log.debug("Scheduling next message for %0.1f seconds",
+                  self.publish_interval)
         self.connection.add_timeout(self.publish_interval,
-                                     self.publish_message)
+                                    self.publish_message)
 
     def start_publishing(self):
         log.info("Issuing consumer related RPC commands")
@@ -275,7 +276,7 @@ class Transporter(threading.Thread):
         try:
             self.reconnect()
         except Exception, err:
-            log.error("(%s) Transporter run() error: %s", err)
+            log.error("(%s) Transporter run() error: %s", self.tag, err)
 
     def signal_checkup(self):
         log.debug("(%s) Performing signal checkup" % self.tag)

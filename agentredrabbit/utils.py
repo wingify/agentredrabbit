@@ -86,9 +86,9 @@ class RedisHelper(object):
                 return None, error
         try:
             max_len = self.length(queue)
-            if max_len == None:
+            if max_len is None:
                 return None, True
-            if max_len == 0:
+            if max_len is 0:
                 return None, False
             if chunk_size > max_len:
                 chunk_size = max_len
