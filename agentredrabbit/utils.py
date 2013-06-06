@@ -99,7 +99,7 @@ class RedisHelper(object):
         except Exception, err:
             log.error("Redis (pop) error: %s", err)
             return None, True
-        log.info("Chunk popped, size=%s", chunk_size)
+        log.debug("Redis chunk popped, size=%s", chunk_size)
         return data[0], not data[1]
 
 

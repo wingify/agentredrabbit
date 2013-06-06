@@ -103,7 +103,7 @@ class Transporter(threading.Thread):
             self.connection.add_timeout(5, self.reconnect)
 
     def on_connection_open(self, unused_connection):
-        log.info("(%s) Connection opened", self.tag)
+        log.debug("(%s) Connection opened", self.tag)
         self.add_on_connection_close_callback()
         self.open_channel()
 
@@ -115,14 +115,14 @@ class Transporter(threading.Thread):
             return
 
         if not self.stopping:
-            log.info("(%s) Connecting to broker", self.tag)
+            log.debug("(%s) Connecting to broker", self.tag)
             connection = self.connect()
             if connection is not None:
                 self.connection = self.connect()
                 self.connection.add_timeout(5, self.signal_checkup)
                 self.connection.ioloop.start()
             else:
-                log.info("(%s) Failed reconnect, retrying", self.tag)
+                log.debug("(%s) Failed reconnect, retrying", self.tag)
                 if tries < 10:
                     self.reconnect(tries + 1)
                 else:
@@ -177,13 +177,13 @@ class Transporter(threading.Thread):
         elif confirmation_type == "nack":
             self.nacked += 1
         self.deliveries.remove(method_frame.method.delivery_tag)
-        log.info("(%s) Published %i messages, %i have yet to be confirmed, "
+        log.debug("(%s) Published %i messages, %i have yet to be confirmed, "
                  "%i were acked and %i were nacked",
                  self.tag, self.message_number, len(self.deliveries),
                  self.acked, self.nacked)
 
     def enable_delivery_confirmations(self):
-        log.info("(%s) Issuing Confirm.Select RPC command", self.tag)
+        log.debug("(%s) Issuing Confirm.Select RPC command", self.tag)
         self.channel.confirm_delivery(self.on_delivery_confirmation)
 
     def publish_message(self):
@@ -234,7 +234,7 @@ class Transporter(threading.Thread):
                 else:
                     self.message_number += 1
                     self.deliveries.append(self.message_number)
-                    log.info("Published message # %i", self.message_number)
+                    log.debug("Published message # %i", self.message_number)
         self.schedule_next_message()
 
     def schedule_next_message(self):
@@ -246,7 +246,7 @@ class Transporter(threading.Thread):
                                     self.publish_message)
 
     def start_publishing(self):
-        log.info("Issuing consumer related RPC commands")
+        log.debug("Issuing consumer related RPC commands")
         self.enable_delivery_confirmations()
         self.schedule_next_message()
 
@@ -294,7 +294,7 @@ class Transporter(threading.Thread):
     def stop(self):
         if self.stopping and self.closing:
             return
-        log.info("(%s) Stopping", self.tag)
+        log.debug("(%s) Stopping", self.tag)
         self.stopping = True
         self.close_channel()
         self.close_connection()

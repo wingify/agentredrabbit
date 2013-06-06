@@ -16,8 +16,8 @@ install: clean
 	cp init.d/agentredrabbit /etc/init.d
 	chmod +x /etc/init.d/agentredrabbit
 	update-rc.d -f agentredrabbit defaults
-	touch /var/log/agentredrabbit.log /var/lib/agentredrabbit.dump
-	chown www-data:www-data /var/log/agentredrabbit.log /var/lib/agentredrabbit.dump
+	chown www-data:www-data /var/log/agentredrabbit.log
+	chown www-data:www-data /var/lib/agentredrabbit.dump
 
 sample-setup:
 	rabbitmqctl add_user agentredrabbit rabbitpassword
