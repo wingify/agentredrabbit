@@ -49,11 +49,14 @@ class Transporter(threading.Thread):
                                   config["sender_email"],
                                   config["receiver_email"])
 
-        self.tag = "%s#%s" % (self.queue, self.threadnum)
+        self.tag = "%s-%s#%s" % (config["agent"], self.queue, self.threadnum)
         self.exchange = config["rabbit_exchange"]
         self.exchange_type = config["rabbit_exchange_type"]
         self.routing_key = "%s.%s.log" % (socket.gethostname(), self.queue)
         self.publish_interval = 1
+        self.message_header = {"node": socket.gethostname(),
+                               "queue": self.queue,
+                               "tag": self.tag}
 
         self.amqp_url = ("amqp://%s:%s@%s:%s/%s?connection_attempts=3&"
                          "heartbeat_interval=600&socket_timeout=300" %
@@ -165,53 +168,84 @@ class Transporter(threading.Thread):
                                  self.exchange, self.routing_key)
 
     def on_delivery_confirmation(self, method_frame):
-        confirmation_type = method_frame.method.NAME.split('.')[1].lower()
-        log.info('Received %s for delivery tag: %i',
+        confirmation_type = method_frame.method.NAME.split(".")[1].lower()
+        log.debug("Received %s for delivery tag: %i",
                     confirmation_type,
                     method_frame.method.delivery_tag)
-        if confirmation_type == 'ack':
+        if confirmation_type == "ack":
             self.acked += 1
-        elif confirmation_type == 'nack':
+        elif confirmation_type == "nack":
             self.nacked += 1
         self.deliveries.remove(method_frame.method.delivery_tag)
-        log.info('Published %i messages, %i have yet to be confirmed, '
-                    '%i were acked and %i were nacked',
+        log.info("Published %i messages, %i have yet to be confirmed, "
+                    "%i were acked and %i were nacked",
                     self.message_number, len(self.deliveries),
                     self.acked, self.nacked)
 
     def enable_delivery_confirmations(self):
-        log.info('(%s) Issuing Confirm.Select RPC command', self.tag)
+        log.info("(%s) Issuing Confirm.Select RPC command", self.tag)
         self.channel.confirm_delivery(self.on_delivery_confirmation)
 
     def publish_message(self):
         if self.stopping:
             return
 
-        message = {u'مفتاح': u' قيمة',
-                   u'键': u'值',
-                   u'キー': u'値'}
-        properties = pika.BasicProperties(app_id='example-publisher',
-                                          content_type='application/json',
-                                          headers=message)
-        # FIXME: try except
-        self.channel.basic_publish(self.exchange, self.routing_key,
-                                    json.dumps(message, ensure_ascii=False),
-                                    properties)
-        self.message_number += 1
-        self.deliveries.append(self.message_number)
-        log.info('Published message # %i', self.message_number)
+        message, error = None, False
+        global failsafeq
+        with self.lock:
+            if len(failsafeq[self.queue]) > 0:
+                try:
+                    message = heapq.heappop(failsafeq[self.queue])
+                except heapq.IndexError:
+                    error = True
+            else:
+                try:
+                    message, error = self.redis.chunk_pop(self.redis_queue)
+                except Exception, err:
+                    sub = "(%s) Unknown chunk_pop Redis error" % self.tag
+                    msg = "Exception on Redis::chunk_pop: %s" % err
+                    log.error("%s: %s", sub, msg)
+                    self.mailer.send(sub, msg)
+
+        if error:
+            if message is not None and len(message) > 0:
+                sub = "(%s) Unexpected Redis chunk pop issue" % self.tag
+                msg = "chunk_pop returned error and message:\n%s" % message
+                with self.lock:
+                    heapq.heappush(failsafeq[self.queue], message)
+                log.error("%s: %s", sub, msg)
+                self.mailer.send(sub, msg)
+        else:
+            if message is not None and len(message) > 0:
+                properties = pika.BasicProperties(app_id=self.tag,
+                                                  delivery_mode=2,
+                                                  headers=self.message_header)
+                try:
+                    self.channel.basic_publish(self.exchange,
+                                              self.routing_key,
+                                              "\n".join(message),
+                                              properties=properties,
+                                              mandatory=True)
+                except pika.exceptions.ChannelClosed, err:
+                    log.error("RMQ Channel closed: %s", err)
+                    with self.lock:
+                        heapq.heappush(failsafeq[self.queue], message)
+                else:
+                    self.message_number += 1
+                    self.deliveries.append(self.message_number)
+                    log.info("Published message # %i", self.message_number)
         self.schedule_next_message()
 
     def schedule_next_message(self):
         if self.stopping:
             return
-        log.info('Scheduling next message for %0.1f seconds',
+        log.info("Scheduling next message for %0.1f seconds",
                     self.publish_interval)
         self.connection.add_timeout(self.publish_interval,
                                      self.publish_message)
 
     def start_publishing(self):
-        log.info('Issuing consumer related RPC commands')
+        log.info("Issuing consumer related RPC commands")
         self.enable_delivery_confirmations()
         self.schedule_next_message()
 
@@ -228,18 +262,20 @@ class Transporter(threading.Thread):
         log.debug("(%s) Creating a new channel", self.tag)
         self.connection.channel(on_open_callback=self.on_channel_open)
 
-    def run(self): # FIXME
+    def run(self):
         log.info("(%s) Starting transporting thread", self.tag)
         while not self.shutdown_event.is_set():
-            try:
-                self.reconnect()
-            except Exception, err:
-                log.error("(%s) Transporter run() error: %s", err)
-                # FIXME what to do next?
             self.transport()
+        log.info("(%s) Deliveries: %s", self.tag, self.deliveries)
+        # FIXME: what to do with unack messags?
 
-    def transport(self):  # FIXME
-        pass
+    def transport(self):
+        if self.shutdown_event_check():
+            return
+        try:
+            self.reconnect()
+        except Exception, err:
+            log.error("(%s) Transporter run() error: %s", err)
 
     def signal_checkup(self):
         log.debug("(%s) Performing signal checkup" % self.tag)
@@ -250,18 +286,17 @@ class Transporter(threading.Thread):
     def shutdown_event_check(self):
         if self.shutdown_event.is_set():
             log.info("(%s) Shutdown event set, stopping", self.tag)
-            # FIXME Stuff
             self.stop()
             return True
         return False
 
     def stop(self):
-        log.info('Stopping')
+        if self.stopping and self.closing:
+            return
+        log.info("(%s) Stopping", self.tag)
         self.stopping = True
         self.close_channel()
         self.close_connection()
-        self.connection.ioloop.start()
-        log.info('Stopped')
-
-
-
+        if self.connection is not None:
+            self.connection.ioloop.start()
+        log.info("(%s) Stopped", self.tag)

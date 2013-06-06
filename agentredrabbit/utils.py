@@ -35,7 +35,7 @@ class RedisHelper(object):
             except Exception, err:
                 self.redis = None
                 error = True
-                log.error("Redis Error: %s" % err)
+                log.error("Redis Error: %s", err)
         return error
 
     def recover(self):
@@ -49,7 +49,7 @@ class RedisHelper(object):
         try:
             data = self.redis.blpop(queue, timeout)
         except Exception, err:
-            log.error("Redis (pop) error: %s" % err)
+            log.error("Redis (pop) error: %s", err)
             return None
         return data
 
@@ -61,9 +61,46 @@ class RedisHelper(object):
         try:
             data = self.redis.lpush(queue, data)
         except Exception, err:
-            log.error("Redis (push) error: %s" % err)
+            log.error("Redis (push) error: %s", err)
             return True
         return False
+
+    def length(self, queue):
+        if self.redis is None:
+            error = self.connect()
+            if error:
+                return None
+        try:
+            length = self.redis.llen(queue)
+        except Exception, err:
+            log.error("Redis, (llen) error: %s", err)
+            return None
+        return length
+
+    def chunk_pop(self, queue, chunk_size=1000):
+        """This method must be called by a thread after acquiring a lock.
+           Method would return data, error."""
+        if self.redis is None:
+            error = self.connect()
+            if error:
+                return None, error
+        try:
+            max_len = self.length(queue)
+            if max_len == None:
+                return None, True
+            if max_len == 0:
+                return None, False
+            if chunk_size > max_len:
+                chunk_size = max_len
+            pipe = self.redis.pipeline()
+            pipe.lrange(queue, 0, chunk_size - 1)
+            pipe.ltrim(queue, chunk_size, -1)
+            data = pipe.execute()
+        except Exception, err:
+            log.error("Redis (pop) error: %s", err)
+            return None, True
+        log.info("Chunk popped, size=%s", chunk_size)
+        return data[0], not data[1]
 
 
 class EmailHelper(object):
