@@ -94,9 +94,13 @@ def main():
     while not shutdown_event.is_set():
         signal.pause()
 
-    dumpfile = open(dumpfilename, "wb")
-    pickle.dump(getFailsafeQueue(), dumpfile)
-    dumpfile.close()
+    try:
+        log.info("Dumping failsafe queue")
+        dumpfile = open(dumpfilename, "wb")
+        pickle.dump(getFailsafeQueue(), dumpfile)
+        dumpfile.close()
+    except IOError, err:
+        log.error("Dumpiing failsafe queue failed: %s", err)
     log.info("We had a clean shutdown, Bye!")
     sys.exit(0)
 
