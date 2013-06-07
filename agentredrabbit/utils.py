@@ -77,7 +77,7 @@ class RedisHelper(object):
             return None
         return length
 
-    def chunk_pop(self, queue, chunk_size=100):
+    def chunk_pop(self, queue, chunk_size=1000):
         """This method must be called by a thread after acquiring a lock.
            Method would return data, error."""
         if self.redis is None:
