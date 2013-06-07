@@ -227,8 +227,8 @@ class Transporter(threading.Thread):
                                                properties=properties,
                                                mandatory=True)
                 except (pika.exceptions.ChannelClosed, Exception), err:
-                    log.error("(%s) Publish error, maybe channel closed: %s",
-                              self.tag, err)
+                    log.error("(%s) Publish error, channel closed?: %s, %s",
+                              self.tag, err, message)
                     with self.lock:
                         heapq.heappush(failsafeq[self.queue], message)
                 else:
