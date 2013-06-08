@@ -181,6 +181,9 @@ class Transporter(threading.Thread):
             self.acked += 1
         elif confirmation_type == "nack":
             self.nacked += 1
+            # TODO: Keep messages too and not just tags
+            log.error("(%s) Message NACK #%s: %s", self.nacked,
+                      method_frame.method.delivery_tag)
         with self.lock:
             try:
                 self.deliveries.remove(method_frame.method.delivery_tag)
