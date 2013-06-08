@@ -19,6 +19,9 @@ except ImportError, err:
 
 log = logging.getLogger(__name__)
 
+# Message confirmation list
+deliveries = []
+
 # Failsafe heap queue
 failsafeq = None
 
@@ -66,10 +69,12 @@ class Transporter(threading.Thread):
 
         self.connection = None
         self.channel = None
-        self.deliveries = []
+        global deliveries
+        self.deliveries = deliveries
         self.acked = 0
         self.nacked = 0
         self.message_number = 0
+        self.publishing = False
         self.stopping = False
         self.closing = False
 
@@ -176,11 +181,15 @@ class Transporter(threading.Thread):
             self.acked += 1
         elif confirmation_type == "nack":
             self.nacked += 1
-        self.deliveries.remove(method_frame.method.delivery_tag)
+        with self.lock:
+            try:
+                self.deliveries.remove(method_frame.method.delivery_tag)
+            except Exception, err:
+                log.warning("Delivery confimed but not in list, %s", err)
         log.debug("(%s) Published %i messages, %i have yet to be confirmed, "
-                 "%i were acked and %i were nacked",
-                 self.tag, self.message_number, len(self.deliveries),
-                 self.acked, self.nacked)
+                  "%i were acked and %i were nacked",
+                  self.tag, self.message_number, len(self.deliveries),
+                  self.acked, self.nacked)
 
     def enable_delivery_confirmations(self):
         log.debug("(%s) Issuing Confirm.Select RPC command", self.tag)
@@ -190,6 +199,7 @@ class Transporter(threading.Thread):
         if self.stopping:
             return
 
+        self.publishing = True
         message, error = None, False
         global failsafeq
         with self.lock:
@@ -207,8 +217,13 @@ class Transporter(threading.Thread):
                     log.error("%s: %s", sub, msg)
                     self.mailer.send(sub, msg)
 
+        if message is None:
+            self.publishing = False
+            self.schedule_next_message()
+            return
+
         if error:
-            if message is not None and len(message) > 0:
+            if len(message) > 0:
                 sub = "(%s) Unexpected Redis chunk pop issue" % self.tag
                 msg = "chunk_pop returned error and message:\n%s" % message
                 with self.lock:
@@ -216,7 +231,7 @@ class Transporter(threading.Thread):
                 log.error("%s: %s", sub, msg)
                 self.mailer.send(sub, msg)
         else:
-            if message is not None and len(message) > 0:
+            if len(message) > 0:
                 properties = pika.BasicProperties(app_id=self.tag,
                                                   delivery_mode=2,
                                                   headers=self.message_header)
@@ -235,6 +250,7 @@ class Transporter(threading.Thread):
                     self.message_number += 1
                     self.deliveries.append(self.message_number)
                     log.debug("Published message # %i", self.message_number)
+        self.publishing = False
         self.schedule_next_message()
 
     def schedule_next_message(self):
@@ -264,15 +280,18 @@ class Transporter(threading.Thread):
         self.connection.channel(on_open_callback=self.on_channel_open)
 
     def run(self):
-        log.info("(%s) Starting transporting thread", self.tag)
+        log.info("(%s) Starting transport thread", self.tag)
         while not self.shutdown_event.is_set():
             self.transport()
         log.info("(%s) Deliveries: %s", self.tag, self.deliveries)
         # FIXME: what to do with unack messags?
+        self.connection.ioloop.stop()
+        return
 
     def transport(self):
         if self.shutdown_event_check():
             return
+        log.info("(%s) Starting transport", self.tag)
         try:
             self.reconnect()
         except Exception, err:
@@ -285,7 +304,7 @@ class Transporter(threading.Thread):
         self.connection.add_timeout(5, self.signal_checkup)
 
     def shutdown_event_check(self):
-        if self.shutdown_event.is_set():
+        if not self.publishing and self.shutdown_event.is_set():
             log.info("(%s) Shutdown event set, stopping", self.tag)
             self.stop()
             return True
