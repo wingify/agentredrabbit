@@ -45,7 +45,7 @@ class Transporter(threading.Thread):
         self.queue = queue
         self.shutdown_event = shutdown_event
 
-        self.redis_queue = "queue:%s_redis" % self.queue
+        self.redis_queue = "queue:%s" % self.queue
         self.redis = RedisHelper(config["redis_host"],
                                  config["redis_port"])
         self.mailer = EmailHelper(config["agent"],
