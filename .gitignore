@@ -4,4 +4,5 @@
 *egg-info
 *.log
 *.dump
+.DS_Store
 docs/agentredrabbit/
