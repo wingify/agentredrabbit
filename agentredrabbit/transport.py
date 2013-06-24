@@ -246,21 +246,20 @@ class Transporter(threading.Thread):
         Method is called when a published message confirmation is received
         """
         confirmation_type = method_frame.method.NAME.split(".")[1].lower()
+        delivery_tag = method_frame.method.delivery_tag
         log.debug("(%s) Received %s for delivery tag: %i",
-                  self.tag, confirmation_type,
-                  method_frame.method.delivery_tag)
+                  self.tag, confirmation_type, delivery_tag)
         if confirmation_type == "ack":
             self.acked += 1
         elif confirmation_type == "nack":
             self.nacked += 1
             # TODO: Keep messages too and not just tags
-            log.error("(%s) Message NACK #%s: %s", self.nacked,
-                      method_frame.method.delivery_tag)
+            log.error("(%s) Message NACK #%s: %s", self.nacked, delivery_tag)
         with self.lock:
             try:
-                self.deliveries.remove(method_frame.method.delivery_tag)
+                self.deliveries.remove(delivery_tag)
             except Exception, err:
-                log.warning("Delivery confimed but not in list, %s", err)
+                log.warning("Delivery confimed", delivery_tag, "err:", err)
         log.debug("(%s) Published %i messages, %i have yet to be confirmed, "
                   "%i were acked and %i were nacked",
                   self.tag, self.message_number, len(self.deliveries),
@@ -309,33 +308,31 @@ class Transporter(threading.Thread):
             return
 
         if error:
-            if len(message) > 0:
-                sub = "(%s) Unexpected Redis chunk pop issue" % self.tag
-                msg = "chunk_pop returned error and message:\n%s" % message
+            sub = "(%s) Unexpected Redis chunk pop issue" % self.tag
+            msg = "chunk_pop returned error and message:\n%s" % message
+            with self.lock:
+                heapq.heappush(failsafeq[self.queue], message)
+            log.error("%s: %s", sub, msg)
+            self.mailer.send(sub, msg)
+        else:
+            properties = pika.BasicProperties(app_id=self.tag,
+                                              delivery_mode=2,
+                                              headers=self.message_header)
+            try:
+                self.channel.basic_publish(self.exchange,
+                                           self.routing_key,
+                                           "\n".join(message),
+                                           properties=properties,
+                                           mandatory=True)
+            except (pika.exceptions.ChannelClosed, Exception), err:
+                log.error("(%s) Publish error, channel closed?: %s, %s",
+                          self.tag, err, message)
                 with self.lock:
                     heapq.heappush(failsafeq[self.queue], message)
-                log.error("%s: %s", sub, msg)
-                self.mailer.send(sub, msg)
-        else:
-            if len(message) > 0:
-                properties = pika.BasicProperties(app_id=self.tag,
-                                                  delivery_mode=2,
-                                                  headers=self.message_header)
-                try:
-                    self.channel.basic_publish(self.exchange,
-                                               self.routing_key,
-                                               "\n".join(message),
-                                               properties=properties,
-                                               mandatory=True)
-                except (pika.exceptions.ChannelClosed, Exception), err:
-                    log.error("(%s) Publish error, channel closed?: %s, %s",
-                              self.tag, err, message)
-                    with self.lock:
-                        heapq.heappush(failsafeq[self.queue], message)
-                else:
-                    self.message_number += 1
-                    self.deliveries.append(self.message_number)
-                    log.debug("Published message # %i", self.message_number)
+            else:
+                self.message_number += 1
+                self.deliveries.append(self.message_number)
+                log.debug("Published message # %i", self.message_number)
         self.publishing = False
         self.schedule_next_message()
 
