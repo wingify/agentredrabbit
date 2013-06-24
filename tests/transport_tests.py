@@ -22,64 +22,61 @@ def mock_publish_exception(exchange, key, msg, properties, mandatory):
 
 
 class TransportTests(unittest.TestCase):
+    def setUp(self):
+        unittest.TestCase.setUp(self)
+        self.transporter = transport.Transporter("1", threading.Lock(),
+                                                 config.ReadConfig(),
+                                                 "queue1", threading.Event())
+        self.transporter.stopping = False
+        self.test_message = "{'key1': 'value1', 'key2': 'value2'}"
+
+        self.transporter.redis = Mock()
+        self.transporter.redis.chunk_pop.return_value = ([self.test_message]*8,
+                                                         False)
+        self.transporter.channel = Mock()
+        self.transporter.channel.basic_publish = mock_publish
+        self.transporter.schedule_next_message = Mock(return_value=None)
+
+    def test_delivery_confirmation_ack(self):
+        frame = Mock()
+        frame.method.NAME = "something.ACK.somethingelse"
+        frame.method.delivery_tag = 1234
+        self.assertFalse(1234 in self.transporter.deliveries)
+        self.transporter.deliveries.append(1234)
+        self.assertTrue(1234 in self.transporter.deliveries)
+        self.transporter.on_delivery_confirmation(frame)
+        self.assertFalse(1234 in self.transporter.deliveries)
+
+    def test_shutdown_event_check(self):
+        self.transporter.stop = Mock()
+        self.transporter.shutdown_event.set()
+        self.transporter.publishing = True
+        self.assertFalse(self.transporter.shutdown_event_check())
+        self.transporter.publishing = False
+        self.assertTrue(self.transporter.shutdown_event_check())
+
     def test_transport_redis(self):
         global published_message
-        transporter = transport.Transporter("1", threading.Lock(),
-                                            config.ReadConfig(),
-                                            "queue1", threading.Event())
-
-        transporter.stopping = False
-        test_message = "{'key1': 'value1', 'key2': 'value2'}"
-        transporter.redis = Mock()
-        transporter.redis.chunk_pop.return_value = ([test_message]*10, False)
-        transporter.channel = Mock()
-
-        transporter.channel.basic_publish = mock_publish
-        transporter.schedule_next_message = Mock(return_value=None)
-        return_value = transporter.publish_message()
+        return_value = self.transporter.publish_message()
         self.assertEqual(return_value, None)
-        self.assertEqual(published_message, "\n".join([test_message] * 10))
+        self.assertEqual(published_message, "\n".join([self.test_message] * 8))
 
     def test_transport_failsafeq(self):
         global published_message
-        transporter = transport.Transporter("1", threading.Lock(),
-                                            config.ReadConfig(),
-                                            "queue1", threading.Event())
-
-        transporter.stopping = False
-        test_message = "{'key1': 'value1', 'key2': 'value2'}"
-        failsafeq = {"queue1": [[test_message]]}
-        transport.setFailsafeQueue(failsafeq)
-        transporter.channel = Mock()
-        transporter.channel.basic_publish = mock_publish
-        transporter.schedule_next_message = Mock(return_value=None)
-        return_value = transporter.publish_message()
+        transport.setFailsafeQueue({"queue1": [[self.test_message]]})
+        return_value = self.transporter.publish_message()
         self.assertEqual(return_value, None)
-        self.assertEqual(published_message, test_message)
+        self.assertEqual(published_message, self.test_message)
 
     def test_transport_pika_exception(self):
         global published_message
-        transporter = transport.Transporter("1", threading.Lock(),
-                                            config.ReadConfig(),
-                                            "queue1", threading.Event())
-
-        transporter.stopping = False
-        test_message = "{'key1': 'value1', 'key2': 'value2'}"
-        transporter.redis = Mock()
-        transporter.redis.chunk_pop.return_value = ([test_message]*10, False)
-        transporter.channel = Mock()
-
-        transporter.channel.basic_publish = mock_publish_exception
-        transporter.schedule_next_message = Mock(return_value=None)
-        return_value = transporter.publish_message()
+        self.transporter.channel.basic_publish = mock_publish_exception
+        return_value = self.transporter.publish_message()
         self.assertEqual(return_value, None)
         self.assertEqual(transport.getFailsafeQueue()["queue1"][0],
-                         [test_message] * 10)
+                         [self.test_message] * 8)
 
     def test_transport_stopping(self):
-        transporter = transport.Transporter("1", threading.Lock(),
-                                            config.ReadConfig(),
-                                            "queue1", threading.Event())
-        transporter.stopping = True
-        return_value = transporter.publish_message()
+        self.transporter.stopping = True
+        return_value = self.transporter.publish_message()
         self.assertEqual(return_value, None)
