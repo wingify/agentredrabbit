@@ -8,7 +8,14 @@ from agentredrabbit import config
 
 
 class ConfigTests(unittest.TestCase):
+    """
+    Unit tests for config.py
+    """
     def test_ReadConfig(self):
+        """
+        test_ReadConfig: Tests config utility
+        Without giving any cfg file, this tests set of default values
+        """
         cfg = config.ReadConfig()
         self.assertEqual(cfg["rabbit_host"], "127.0.0.1")
         self.assertEqual(cfg["rabbit_port"], "5672")
