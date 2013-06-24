@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""
+Transport class of agentredrabbit. This module provides class and mechanisms to
+transport data from Redis to RabbitMQ
+"""
 try:
     import heapq
     import pika
@@ -27,17 +31,39 @@ failsafeq = None
 
 
 def getFailsafeQueue():
+    """
+    Method returns failsafe queue
+    """
     global failsafeq
     return failsafeq
 
 
 def setFailsafeQueue(queue):
+    """
+    Method sets failsafe queue
+    @param queue: A dictionary with queue names as key and the value is a list
+    of data
+    """
     global failsafeq
     failsafeq = queue
 
 
 class Transporter(threading.Thread):
+    """
+    The threaded worker class which provides mechanism to transport data
+    from Redis to RabbitMQ
+    """
     def __init__(self, threadnum, lock, config, queue, shutdown_event):
+        """
+        Transporter class initializer
+        @param threadnum: Thread number, for debuggable log message. Used to
+        create a unique tag
+        @param lock: The thread lock object
+        @param config: The configuration dictionary
+        @param queue: Name of the queue. The `queue` is the queue name in
+        RabbitMQ and queue:`queue` for Redis list
+        @param shutdown_event: Event object
+        """
         threading.Thread.__init__(self)
         self.threadnum = threadnum
         self.lock = lock
@@ -79,6 +105,9 @@ class Transporter(threading.Thread):
         self.closing = False
 
     def connect(self):
+        """
+        Method connects to RabbitMQ server
+        """
         log.debug("(%s) Connecting to %s", self.tag, self.amqp_url)
         conn = None
         try:
@@ -90,15 +119,24 @@ class Transporter(threading.Thread):
         return conn
 
     def close_connection(self):
+        """
+        Closes connection to RabbitMQ
+        """
         log.debug("(%s) Closing connection", self.tag)
         self.closing = True
         self.connection.close()
 
     def add_on_connection_close_callback(self):
+        """
+        Method adds a callback method when a RabbitMQ connection is closed
+        """
         log.debug("(%s) Adding connection close callback", self.tag)
         self.connection.add_on_close_callback(self.on_connection_closed)
 
     def on_connection_closed(self, connection, reply_code, reply_text):
+        """
+        Method is called when a RabbitMQ connection is closed
+        """
         self.channel = None
         if self.closing:
             self.connection.ioloop.stop()
@@ -108,11 +146,18 @@ class Transporter(threading.Thread):
             self.connection.add_timeout(5, self.reconnect)
 
     def on_connection_open(self, unused_connection):
+        """
+        Method is called when a RabbitMQ connection is opened
+        """
         log.debug("(%s) Connection opened", self.tag)
         self.add_on_connection_close_callback()
         self.open_channel()
 
-    def reconnect(self, tries=0):
+    def reconnect(self, tries=10):
+        """
+        Method provides mechanism to reconnect to a RabbitMQ server
+        @param tries: Max retries for reconnect method
+        """
         if self.connection is not None:
             self.connection.ioloop.stop()
 
@@ -128,29 +173,43 @@ class Transporter(threading.Thread):
                 self.connection.ioloop.start()
             else:
                 log.debug("(%s) Failed reconnect, retrying", self.tag)
-                if tries < 10:
-                    self.reconnect(tries + 1)
+                if tries > 0:
+                    tries = tries - 1
+                    self.reconnect(tries)
                 else:
                     self.mailer.send("(%s) RMQ reconnection failed" % self.tag,
                                      "Failed to reconnect to the broker")
 
     def add_on_channel_close_callback(self):
+        """
+        Method is called when a RabbitMQ channel is closed
+        """
         log.debug("(%s) Adding channel close callback", self.tag)
         self.channel.add_on_close_callback(self.on_channel_closed)
 
     def on_channel_closed(self, channel, reply_code, reply_text):
+        """
+        Method is called when a RabbitMQ channel is closed
+        """
         log.warning("(%s) Channel %i was closed: (%s) %s",
                     self.tag, channel, reply_code, reply_text)
         if not self.closing:
             self.connection.close()
 
     def on_channel_open(self, channel):
+        """
+        Method is called when a RabbitMQ channel is opened
+        """
         log.debug("(%s) Channel opened", self.tag)
         self.channel = channel
         self.add_on_channel_close_callback()
         self.setup_exchange(self.exchange)
 
     def setup_exchange(self, exchange_name):
+        """
+        Method sets up a durable exchange on RabbitMQ
+        @param exchange_name: Name of the exchange
+        """
         log.debug("(%s) Declaring exchange %s", self.tag, exchange_name)
         self.channel.exchange_declare(self.on_exchange_declareok,
                                       exchange_name,
@@ -158,21 +217,34 @@ class Transporter(threading.Thread):
                                       durable=True)
 
     def on_exchange_declareok(self, unused_frame):
+        """
+        Method is called when setup_exchange succeeds
+        """
         log.debug("(%s) Exchange declared", self.tag)
         self.setup_queue(self.queue)
 
     def setup_queue(self, queue_name):
+        """
+        Method sets up a durable queue on RabbitMQ
+        @param queue_name: Name of the queue
+        """
         log.debug("(%s) Declaring queue %s", self.tag, queue_name)
         self.channel.queue_declare(self.on_queue_declareok, queue_name,
                                    durable=True)
 
     def on_queue_declareok(self, method_frame):
+        """
+        Method is called when setup_queue succeeds
+        """
         log.debug("(%s) Binding %s to %s with %s", self.tag, self.exchange,
                   self.queue, self.routing_key)
         self.channel.queue_bind(self.on_bindok, self.queue,
                                 self.exchange, self.routing_key)
 
     def on_delivery_confirmation(self, method_frame):
+        """
+        Method is called when a published message confirmation is received
+        """
         confirmation_type = method_frame.method.NAME.split(".")[1].lower()
         log.debug("(%s) Received %s for delivery tag: %i",
                   self.tag, confirmation_type,
@@ -195,10 +267,21 @@ class Transporter(threading.Thread):
                   self.acked, self.nacked)
 
     def enable_delivery_confirmations(self):
+        """
+        Method enables publisher confirms on a channel
+        """
         log.debug("(%s) Issuing Confirm.Select RPC command", self.tag)
         self.channel.confirm_delivery(self.on_delivery_confirmation)
 
     def publish_message(self):
+        """
+        The method which transports data from Redis server to RabbitMQ server.
+        It starts by acquiring a lock among threads and checks if there is some
+        data in the failsafe queue or grabs data from Redis. After getting the
+        chunk which is not empty it publishes the chunk to RabbitMQ. In case
+        an error is caught it puts the chunk to the failsafe queue and
+        schedules publish_message to be run asynchronously.
+        """
         if self.stopping:
             return
 
@@ -257,6 +340,9 @@ class Transporter(threading.Thread):
         self.schedule_next_message()
 
     def schedule_next_message(self):
+        """
+        Schedules next message after publish_interval time
+        """
         if self.stopping:
             return
         log.debug("Scheduling next message for %0.1f seconds",
@@ -265,33 +351,53 @@ class Transporter(threading.Thread):
                                     self.publish_message)
 
     def start_publishing(self):
+        """
+        Method starts publishing payload
+        """
         log.debug("Issuing consumer related RPC commands")
         self.enable_delivery_confirmations()
         self.schedule_next_message()
 
     def on_bindok(self, unused_frame):
+        """
+        Method is called when bindok is received from RabbitMQ for a queue
+        and an exchange
+        """
         log.debug("(%s) Queue bound", self.tag)
         self.start_publishing()
 
     def close_channel(self):
+        """
+        Closes a channel
+        """
         log.debug("(%s) Closing the channel", self.tag)
         if self.channel:
             self.channel.close()
 
     def open_channel(self):
+        """
+        Opens a channel
+        """
         log.debug("(%s) Creating a new channel", self.tag)
         self.connection.channel(on_open_callback=self.on_channel_open)
 
     def run(self):
+        """
+        Method starts the thread
+        """
         log.info("(%s) Starting transport thread", self.tag)
         while not self.shutdown_event.is_set():
             self.transport()
         log.info("(%s) Deliveries: %s", self.tag, self.deliveries)
         # FIXME: what to do with unack messags?
-        self.connection.ioloop.stop()
+        if self.connection:
+            self.connection.ioloop.stop()
         return
 
     def transport(self):
+        """
+        Method starts transport logic
+        """
         if self.shutdown_event_check():
             return
         log.info("(%s) Starting transport", self.tag)
@@ -301,12 +407,20 @@ class Transporter(threading.Thread):
             log.error("(%s) Transporter run() error: %s", self.tag, err)
 
     def signal_checkup(self):
+        """
+        Method checks for any shutdown signal set on the shutdown event object.
+        It then schedules a check after 5s
+        """
         log.debug("(%s) Performing signal checkup" % self.tag)
         if self.shutdown_event_check():
             return
         self.connection.add_timeout(5, self.signal_checkup)
 
     def shutdown_event_check(self):
+        """
+        Method checks for any on going publishing process and checks the
+        shutdown event object
+        """
         if not self.publishing and self.shutdown_event.is_set():
             log.info("(%s) Shutdown event set, stopping", self.tag)
             self.stop()
@@ -314,6 +428,9 @@ class Transporter(threading.Thread):
         return False
 
     def stop(self):
+        """
+        Method stops the async ioloop and stop publishing to RabbitMQ
+        """
         if self.stopping and self.closing:
             return
         log.debug("(%s) Stopping", self.tag)
