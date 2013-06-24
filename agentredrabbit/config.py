@@ -1,3 +1,6 @@
+"""
+Config utility tightly coupled with agentredrabbit
+"""
 try:
     import os
     import sys
@@ -32,6 +35,12 @@ config_fields['log_file'] = "agentredrabbit.log"
 
 
 def ReadConfig(config_file="/etc/agentredrabbit.conf"):
+    """
+    Method provides way to read a config file and return a dictionary of
+    config keys and its values
+    @param config_file: Filesystem path of the config file. Defaults to
+    /etc/agentredrabbit.conf
+    """
     global config_fields
     config = ConfigParser()
     section = "agentredrabbit"

@@ -1,3 +1,6 @@
+"""
+The main method and signal handlers for agentredrabbit
+"""
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 try:
@@ -24,6 +27,11 @@ shutdown_event = None
 
 
 def sighandler(signum, frame):
+    """
+    Signal handler method for agentredrabbit. Its purpose is to capture signals
+    such as SIGTERM, SIGHUP, SIGQUIT, SIGINT and gracefully shutdown all the
+    thread workers. signum and frame params are passed by `signal`
+    """
     log.info("Starting graceful shutdown, caught signal #%s" % signum)
     global threads, shutdown_event
     shutdown_event.set()
@@ -36,6 +44,13 @@ def sighandler(signum, frame):
 
 
 def main():
+    """
+    Main method for agentredrabbit. The workflow consists of parsing cmd arg,
+    reading config file, have logger, signal handler setup, read from any
+    previously dumped failsafe queue, configure thread event and lock objects,
+    start threads and wait till a shutdown event is trigged upon which it dumps
+    any leftover message from the in memory failsafe queue to a dump file.
+    """
     log.setLevel(logging.INFO)
     parser = OptionParser(usage="%prog [-c config] [-v]",
                           version="%prog %s")
@@ -47,11 +62,13 @@ def main():
                       help="increase debug level from INFO to DEBUG")
     (options, args) = parser.parse_args()
 
+    # Read config file
     cfg_path = "/etc/agentredrabbit.conf"
     if options.config_file is not None:
         cfg_path = options.config_file
     config = ReadConfig(cfg_path)
 
+    # Setup logger
     log_level = logging.INFO
     if options.verbose:
         log_level = logging.DEBUG
@@ -60,6 +77,7 @@ def main():
                         level=log_level, format=log_format)
     logging.getLogger("pika").setLevel(logging.INFO)
 
+    # Setup signal handlers
     signal.signal(signal.SIGTERM, sighandler)
     signal.signal(signal.SIGINT, sighandler)
     signal.signal(signal.SIGQUIT, sighandler)
@@ -91,9 +109,11 @@ def main():
         thread.start()
         threads.append(thread)
 
+    # Hang on till a shutdown event is triggered
     while not shutdown_event.is_set():
         signal.pause()
 
+    # Dump in failsafeq to the dump file
     try:
         log.info("Dumping failsafe queue")
         dumpfile = open(dumpfilename, "wb")
