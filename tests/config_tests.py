@@ -10,8 +10,8 @@ from agentredrabbit import config
 class ConfigTests(unittest.TestCase):
     def test_ReadConfig(self):
         cfg = config.ReadConfig()
-        self.assertEqual(cfg["host"], "localhost")
-        self.assertEqual(cfg["port"], "5672")
-        self.assertEqual(cfg["username"], "guest")
-        self.assertEqual(cfg["password"], "guest")
-        self.assertEqual(cfg["vhost"], "/")
+        self.assertEqual(cfg["rabbit_host"], "127.0.0.1")
+        self.assertEqual(cfg["rabbit_port"], "5672")
+        self.assertEqual(cfg["rabbit_user"], "guest")
+        self.assertEqual(cfg["rabbit_passwd"], "guest")
+        self.assertEqual(cfg["rabbit_vhost"], "/")

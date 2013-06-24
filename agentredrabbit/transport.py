@@ -303,7 +303,7 @@ class Transporter(threading.Thread):
                     log.error("%s: %s", sub, msg)
                     self.mailer.send(sub, msg)
 
-        if message is None:
+        if message is None or len(message) == 0:
             self.publishing = False
             self.schedule_next_message()
             return
