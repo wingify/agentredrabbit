@@ -7,8 +7,12 @@ build: runtests
 	python setup.py build
 	python setup.py sdist
 
+docs: clean
+	epydoc --config docs/epydoc.cfg
+	echo "Docs built in docs/agentredrabbit"
+
 clean:
-	rm -frv build dist *egg-info
+	rm -frv build dist *egg-info docs/agentredrabbit/
 
 install: clean
 	python setup.py sdist
