@@ -284,6 +284,10 @@ class Transporter(threading.Thread):
         if self.stopping:
             return
 
+        # Return if channel is None or not open
+        if self.channel is None or not self.channel.is_open:
+            return
+
         self.publishing = True
         message, error = None, False
         global failsafeq
