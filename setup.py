@@ -17,7 +17,7 @@ setup(
     description="Redis to RabbitMQ transport agent",
     long_description="Transport agent that moves data from Redis to RabbitMQ",
     platforms=("Any",),
-    packages=find_packages(),
+    packages=find_packages(exclude=["tests"]),
     package_data={"": ["LICENSE",],},
     install_requires = [
         "hiredis",
