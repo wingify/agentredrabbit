@@ -23,9 +23,6 @@ except ImportError, err:
 
 log = logging.getLogger(__name__)
 
-# Message confirmation list
-deliveries = []
-
 # Failsafe heap queue
 failsafeq = None
 
@@ -95,8 +92,7 @@ class Transporter(threading.Thread):
 
         self.connection = None
         self.channel = None
-        global deliveries
-        self.deliveries = deliveries
+        self.deliveries = []
         self.acked = 0
         self.nacked = 0
         self.message_number = 0
@@ -202,6 +198,7 @@ class Transporter(threading.Thread):
         """
         log.debug("(%s) Channel opened", self.tag)
         self.channel = channel
+        self.message_number = 0
         self.add_on_channel_close_callback()
         self.setup_exchange(self.exchange)
 
@@ -253,13 +250,12 @@ class Transporter(threading.Thread):
             self.acked += 1
         elif confirmation_type == "nack":
             self.nacked += 1
-            # TODO: Keep messages too and not just tags
+            # TODO: Keep nack'd messages and not just tags
             log.error("(%s) Message NACK #%s: %s", self.nacked, delivery_tag)
-        with self.lock:
-            try:
-                self.deliveries.remove(delivery_tag)
-            except Exception, err:
-                log.warning("Delivery confimed", delivery_tag, "err:", err)
+        try:
+            self.deliveries.remove(delivery_tag)
+        except Exception, err:
+            log.warning("Delivery confimed", delivery_tag, "err:", err)
         log.debug("(%s) Published %i messages, %i have yet to be confirmed, "
                   "%i were acked and %i were nacked",
                   self.tag, self.message_number, len(self.deliveries),
@@ -390,7 +386,6 @@ class Transporter(threading.Thread):
         while not self.shutdown_event.is_set():
             self.transport()
         log.info("(%s) Deliveries: %s", self.tag, self.deliveries)
-        # FIXME: what to do with unack messags?
         if self.connection:
             self.connection.ioloop.stop()
         return
