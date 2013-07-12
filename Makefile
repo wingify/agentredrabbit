@@ -12,7 +12,7 @@ docs: clean
 	echo "Docs built in docs/agentredrabbit"
 
 clean:
-	find . | grep pyc$ | xargs rm
+	find . | grep pyc$ | xargs rm -f
 	rm -frv build dist *egg-info docs/agentredrabbit/
 
 install: clean
