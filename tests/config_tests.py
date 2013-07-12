@@ -16,7 +16,7 @@ class ConfigTests(unittest.TestCase):
         test_ReadConfig: Tests config utility
         Without giving any cfg file, this tests set of default values
         """
-        cfg = config.ReadConfig()
+        cfg = config.ReadConfig("/fakefile")
         self.assertEqual(cfg["rabbit_host"], "127.0.0.1")
         self.assertEqual(cfg["rabbit_port"], "5672")
         self.assertEqual(cfg["rabbit_user"], "guest")

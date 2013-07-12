@@ -58,14 +58,6 @@ case "$1" in
         stop_agent
         echo "$NAME."
         ;;
-
-  restart)
-        echo -n "Restarting "
-        stop_agent
-        sleep 4
-        start_agent
-        echo "$NAME."
-        ;;
   status)
         status_of_proc $AGENT_BIN $NAME
         ;;
