@@ -85,6 +85,10 @@ Send a pull request on the GitHub repository: `https://github.com/wingify/agentr
 
 You may contact the author and Wingify's engineering team on engineering@wingify.com
 
+## Acknowledgements and Attributions
+
+[Example code of Async publisher using `pika`](https://pika.readthedocs.org/en/latest/examples/asynchronous_publisher_example.html)
+
 ## Copyright and License
 
 Licensed under the opensource permissive MIT license.
