@@ -4,6 +4,19 @@ agentredrabbit is a transport agent written in Python which moves data from
 Redis to RabbitMQ. It uses multithreaded workers to do the job and supports
 failsafe graceful shutdown and recovery.
 
+![agentredrabbit](/docs/flow.png "agentredrabbit")
+
+- `agentredrabbit` on startup loads failed messages from a dump file, if any
+- Thread workers synchronize using a global lock when working with failsafe queue
+- It polls to check any messages in a Redis list by name `queue:queue1` and pops
+  messages in max. chunk size of 100 and tries to publish to RabbitMQ broker
+- If message publishing fails, it saves the chunk to an internal failsafe message
+  queue (a heap queue), stops consuming from Redis and retries publishing to
+  RabbitMQ
+- On shutdown, a global event object is used and it dumps any messages from its
+  failsafe queue to a dump file
+- On connectivity failures, it tries to reconnect to either Redis or RabbitMQ
+
 ## Naming conventions and assumptions
 
 - AMQP heartbeat is assumed at 100s.
