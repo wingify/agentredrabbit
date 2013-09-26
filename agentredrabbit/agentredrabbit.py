@@ -11,6 +11,8 @@ try:
     import sys
     import threading
 
+    from __init__ import __version__
+
     from config import ReadConfig
     from utils import log_format
     from transport import Transporter
@@ -53,7 +55,7 @@ def main():
     """
     log.setLevel(logging.INFO)
     parser = OptionParser(usage="%prog [-c config] [-v]",
-                          version="%prog %s")
+                          version="%prog " + __version__)
     parser.add_option("-c", "--config",
                       dest="config_file", default=None,
                       help="config file")
