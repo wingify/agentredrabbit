@@ -21,6 +21,8 @@ install: clean
 	cp init.d/agentredrabbit /etc/init.d
 	chmod +x /etc/init.d/agentredrabbit
 	update-rc.d -f agentredrabbit defaults
+	touch /var/log/agentredrabbit.log
+	python -c "import pickle;pickle.dump({}, open('/var/lib/agentredrabbit.dump', 'wb'))"
 	chown www-data:www-data /var/log/agentredrabbit.log
 	chown www-data:www-data /var/lib/agentredrabbit.dump
 
