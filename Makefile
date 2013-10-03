@@ -22,8 +22,8 @@ install: clean
 	chmod +x /etc/init.d/agentredrabbit
 	update-rc.d -f agentredrabbit defaults
 	touch /var/log/agentredrabbit.log
-	python -c "import pickle;pickle.dump({}, open('/var/lib/agentredrabbit.dump', 'wb'))"
 	chown www-data:www-data /var/log/agentredrabbit.log
+	python -c "import os, pickle; print pickle.dump({}, open('/var/lib/agentredrabbit.dump', 'wb')) if not os.path.exists('/var/lib/agentredrabbit.dump') else 'dump exists'"
 	chown www-data:www-data /var/lib/agentredrabbit.dump
 
 sample-setup:
