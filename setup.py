@@ -19,11 +19,16 @@ setup(
     platforms=("Any",),
     packages=find_packages(exclude=["tests"]),
     package_data={"": ["LICENSE",],},
-    install_requires = [
+    install_requires=[
         "hiredis",
         "pika",
         "redis",
     ],
+    tests_require=[
+        "nose",
+        "mock",
+    ],
+    test_suite="nose.collector",
     include_package_data = True,
     zip_safe = False,
     classifiers = [

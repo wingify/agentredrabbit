@@ -1,7 +1,7 @@
 all: build
 
 runtests:
-	nosetests -v --verbosity=3
+	python setup.py test
 
 build: runtests
 	python setup.py build

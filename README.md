@@ -36,6 +36,8 @@ Dependencies:
 - nose, mock (for tests)
 - Local outbound SMTP server for sending email notifications
 
+These are taken care of by the installation procedure.
+
 ### Doc generation
 
 To generate documentation of the code:
