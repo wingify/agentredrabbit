@@ -3,25 +3,21 @@ The main method and signal handlers for agentredrabbit
 """
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-try:
-    import logging
-    import os
-    import pickle
-    import signal
-    import sys
-    import threading
 
-    from __init__ import __version__
+import logging
+import os
+import pickle
+import signal
+import sys
+import threading
 
-    from config import ReadConfig
-    from utils import log_format
-    from transport import Transporter
-    from transport import setFailsafeQueue, getFailsafeQueue
-    from optparse import OptionParser
-except ImportError, err:
-    print "ImportError", err
-    import sys
-    sys.exit(1)
+from __init__ import __version__
+
+from config import ReadConfig
+from utils import log_format
+from transport import Transporter
+from transport import setFailsafeQueue, getFailsafeQueue
+from optparse import OptionParser
 
 log = logging.getLogger(__name__)
 threads = []

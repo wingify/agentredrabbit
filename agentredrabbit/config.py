@@ -1,16 +1,12 @@
 """
 Config utility tightly coupled with agentredrabbit
 """
-try:
-    import os
-    import sys
-    import logging
 
-    from ConfigParser import ConfigParser
-except ImportError, err:
-    print("Import error in %s : %s" % (__name__, err))
-    import sys
-    sys.exit(1)
+import os
+import sys
+import logging
+
+from ConfigParser import ConfigParser
 
 log = logging.getLogger(__name__)
 

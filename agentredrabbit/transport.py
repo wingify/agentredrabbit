@@ -3,23 +3,19 @@
 Transport class of agentredrabbit. This module provides class and mechanisms to
 transport data from Redis to RabbitMQ
 """
-try:
-    import heapq
-    import pika
-    import redis
-    import logging
-    import json
-    import smtplib
-    import socket
-    import threading
-    import time
-    import urllib
 
-    from utils import RedisHelper, EmailHelper
-except ImportError, err:
-    print "ImportError", err
-    import sys
-    sys.exit(1)
+import heapq
+import pika
+import redis
+import logging
+import json
+import smtplib
+import socket
+import threading
+import time
+import urllib
+
+from utils import RedisHelper, EmailHelper
 
 log = logging.getLogger(__name__)
 

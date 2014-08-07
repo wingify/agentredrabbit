@@ -1,17 +1,13 @@
 """
 Provides reusable utilities and helper classes.
 """
-try:
-    import logging
-    import os
-    import redis
-    import smtplib
 
-    from email.mime.text import MIMEText
-except ImportError, err:
-    print "ImportError", err
-    import sys
-    sys.exit(1)
+import logging
+import os
+import redis
+import smtplib
+
+from email.mime.text import MIMEText
 
 log_format = ('%(levelname) -8s %(asctime)s %(name) 25s %(funcName) '
               '-30s %(lineno) -5d: %(message)s')
